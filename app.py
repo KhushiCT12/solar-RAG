@@ -184,105 +184,141 @@ if st.session_state.show_chunking and st.session_state.rag_system:
     except ImportError:
         # Fallback: show inline visualization
         st.title("📊 Chunking Visualization")
-        st.markdown("View how your PDF has been chunked into text, tables, and images")
+        st.markdown("View how your PDF has been chunked - chunks displayed by page with colored boxes")
         
         if st.button("← Back to Query"):
             st.session_state.show_chunking = False
             st.rerun()
         
-        chunks_by_type = st.session_state.rag_system.vector_store.get_all_chunks_by_type()
+        # Get chunks grouped by page
+        chunks_by_page = st.session_state.rag_system.vector_store.get_all_chunks_by_page()
         
-        total_text = len(chunks_by_type['text'])
-        total_tables = len(chunks_by_type['table'])
-        total_images = len(chunks_by_type['image'])
-        total_chunks = total_text + total_tables + total_images
-        
-        # Summary metrics
-        st.markdown("### Summary")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Chunks", total_chunks)
-        with col2:
-            st.metric("📝 Text Chunks", total_text)
-        with col3:
-            st.metric("📊 Table Chunks", total_tables)
-        with col4:
-            st.metric("🖼️ Image Chunks", total_images)
-        
-        st.divider()
-        
-        # Create tabs for each chunk type
-        tab1, tab2, tab3 = st.tabs([
-            f"📝 Text Chunks ({total_text})",
-            f"📊 Table Chunks ({total_tables})",
-            f"🖼️ Image Chunks ({total_images})"
-        ])
-        
-        # Text Chunks Tab
-        with tab1:
-            if total_text > 0:
-                for i, chunk in enumerate(chunks_by_type['text'], 1):
-                    page = chunk['metadata'].get('page', 'N/A')
+        if not chunks_by_page:
+            st.warning("No chunks found. Please process a PDF first.")
+        else:
+            # Summary metrics
+            total_pages = len(chunks_by_page)
+            total_chunks = sum(len(chunks) for chunks in chunks_by_page.values())
+            total_text = sum(1 for chunks in chunks_by_page.values() for c in chunks if c['metadata'].get('type', '').lower() == 'text')
+            total_tables = sum(1 for chunks in chunks_by_page.values() for c in chunks if c['metadata'].get('type', '').lower() == 'table')
+            total_images = sum(1 for chunks in chunks_by_page.values() for c in chunks if c['metadata'].get('type', '').lower() == 'image')
+            
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                st.metric("Total Pages", total_pages)
+            with col2:
+                st.metric("Total Chunks", total_chunks)
+            with col3:
+                st.metric("📝 Text", total_text)
+            with col4:
+                st.metric("📊 Tables", total_tables)
+            with col5:
+                st.metric("🖼️ Images", total_images)
+            
+            st.divider()
+            
+            # Page selector
+            sorted_pages = sorted(chunks_by_page.keys())
+            selected_page = st.selectbox(
+                "Select Page to View:",
+                sorted_pages,
+                format_func=lambda x: f"Page {x} ({len(chunks_by_page[x])} chunks)"
+            )
+            
+            st.markdown(f"### 📄 Page {selected_page} - {len(chunks_by_page[selected_page])} Chunks")
+            
+            # Display chunks for selected page
+            page_chunks = chunks_by_page[selected_page]
+            
+            # Group chunks by type for this page
+            text_chunks = [c for c in page_chunks if c['metadata'].get('type', '').lower() == 'text']
+            table_chunks = [c for c in page_chunks if c['metadata'].get('type', '').lower() == 'table']
+            image_chunks = [c for c in page_chunks if c['metadata'].get('type', '').lower() == 'image']
+            
+            # Display text chunks in green boxes
+            if text_chunks:
+                st.markdown("#### 📝 Text Chunks")
+                for chunk in text_chunks:
                     content = chunk['content']
                     display_content = content[:500] + "..." if len(content) > 500 else content
+                    chunk_idx = chunk['metadata'].get('chunk_index', 0) + 1
                     
                     st.markdown(
                         f"""
-                        <div style="background-color: #d4edda; border: 2px solid #28a745; border-radius: 8px; padding: 15px; margin: 10px 0;">
-                            <strong>📝 Text Chunk #{i} - Page {page}</strong><br>
-                            <div style="color: #555; margin-top: 8px;">{display_content}</div>
+                        <div style="background-color: #d4edda; border: 2px solid #28a745; border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 8px; color: #155724;">📝 Text Chunk #{chunk_idx}</div>
+                            <div style="color: #555; line-height: 1.6;">{display_content}</div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
                     if len(content) > 500:
-                        with st.expander(f"View full content of Text Chunk #{i}"):
+                        with st.expander(f"View full content of Text Chunk #{chunk_idx}"):
                             st.text(content)
-            else:
-                st.info("No text chunks found.")
-        
-        # Table Chunks Tab
-        with tab2:
-            if total_tables > 0:
-                for i, chunk in enumerate(chunks_by_type['table'], 1):
-                    page = chunk['metadata'].get('page', 'N/A')
+            
+            # Display table chunks in purple boxes
+            if table_chunks:
+                st.markdown("#### 📊 Table Chunks")
+                for chunk in table_chunks:
                     content = chunk['content']
                     display_content = content[:800] + "..." if len(content) > 800 else content
+                    chunk_idx = chunk['metadata'].get('chunk_index', 0) + 1
+                    table_idx = chunk['metadata'].get('table_index', 0) + 1
+                    rows = chunk['metadata'].get('rows', 0)
+                    cols = chunk['metadata'].get('columns', 0)
                     
                     st.markdown(
                         f"""
-                        <div style="background-color: #e2d9f3; border: 2px solid #6f42c1; border-radius: 8px; padding: 15px; margin: 10px 0;">
-                            <strong>📊 Table Chunk #{i} - Page {page}</strong><br>
-                            <pre style="white-space: pre-wrap; font-family: monospace; background: transparent; margin-top: 8px;">{display_content}</pre>
+                        <div style="background-color: #e2d9f3; border: 2px solid #6f42c1; border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 8px; color: #4a148c;">📊 Table Chunk #{chunk_idx} (Table #{table_idx})</div>
+                            <div style="color: #666; font-size: 0.9em; margin-bottom: 8px;">{rows} rows × {cols} columns</div>
+                            <pre style="white-space: pre-wrap; font-family: monospace; background: transparent; color: #555; margin: 0; font-size: 0.9em;">{display_content}</pre>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
                     if len(content) > 800:
-                        with st.expander(f"View full content of Table Chunk #{i}"):
+                        with st.expander(f"View full content of Table Chunk #{chunk_idx}"):
                             st.text(content)
-            else:
-                st.info("No table chunks found.")
-        
-        # Image Chunks Tab
-        with tab3:
-            if total_images > 0:
-                for i, chunk in enumerate(chunks_by_type['image'], 1):
-                    page = chunk['metadata'].get('page', 'N/A')
-                    img_index = chunk['metadata'].get('image_index', 'N/A')
+            
+            # Display image chunks in red boxes
+            if image_chunks:
+                st.markdown("#### 🖼️ Image Chunks")
+                for chunk in image_chunks:
+                    chunk_idx = chunk['metadata'].get('chunk_index', 0) + 1
+                    img_idx = chunk['metadata'].get('image_index', 0) + 1
                     img_format = chunk['metadata'].get('format', 'N/A')
+                    width = chunk['metadata'].get('width', 0)
+                    height = chunk['metadata'].get('height', 0)
                     
                     st.markdown(
                         f"""
-                        <div style="background-color: #f8d7da; border: 2px solid #dc3545; border-radius: 8px; padding: 15px; margin: 10px 0;">
-                            <strong>🖼️ Image Chunk #{i} - Page {page}</strong><br>
-                            <div style="color: #555; margin-top: 8px;">Image #{img_index + 1} | Format: {img_format}</div>
+                        <div style="background-color: #f8d7da; border: 2px solid #dc3545; border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 8px; color: #721c24;">🖼️ Image Chunk #{chunk_idx}</div>
+                            <div style="color: #555; line-height: 1.6;">
+                                Image #{img_idx} on this page<br>
+                                Format: {img_format} | Dimensions: {width} × {height} pixels
+                            </div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
-            else:
-                st.info("No image chunks found.")
+            
+            # Navigation between pages
+            st.divider()
+            col_prev, col_next = st.columns(2)
+            with col_prev:
+                if selected_page > min(sorted_pages):
+                    prev_page = sorted_pages[sorted_pages.index(selected_page) - 1]
+                    if st.button(f"← Previous Page ({prev_page})"):
+                        st.session_state.selected_page = prev_page
+                        st.rerun()
+            with col_next:
+                if selected_page < max(sorted_pages):
+                    next_page = sorted_pages[sorted_pages.index(selected_page) + 1]
+                    if st.button(f"Next Page ({next_page}) →"):
+                        st.session_state.selected_page = next_page
+                        st.rerun()
 
 elif st.session_state.processed and st.session_state.rag_system:
     # Query interface

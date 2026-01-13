@@ -139,6 +139,38 @@ class VectorStore:
             print(f"Error getting chunks by type: {e}")
             return {'text': [], 'table': [], 'image': []}
     
+    def get_all_chunks_by_page(self) -> Dict[int, List[Dict]]:
+        """Get all chunks grouped by page number"""
+        try:
+            # Get all chunks from the collection
+            results = self.collection.get()
+            
+            chunks_by_page = {}
+            
+            if results['ids']:
+                for i in range(len(results['ids'])):
+                    chunk = {
+                        'id': results['ids'][i],
+                        'content': results['documents'][i] if 'documents' in results else '',
+                        'metadata': results['metadatas'][i] if 'metadatas' in results else {}
+                    }
+                    page = chunk['metadata'].get('page', 0)
+                    if page not in chunks_by_page:
+                        chunks_by_page[page] = []
+                    chunks_by_page[page].append(chunk)
+            
+            # Sort chunks within each page by type and chunk index
+            for page in chunks_by_page:
+                chunks_by_page[page].sort(key=lambda x: (
+                    x['metadata'].get('type', 'text'),
+                    x['metadata'].get('chunk_index', 0)
+                ))
+            
+            return chunks_by_page
+        except Exception as e:
+            print(f"Error getting chunks by page: {e}")
+            return {}
+    
     def clear_collection(self):
         """Clear all data from the collection"""
         self.client.delete_collection(name=self.collection_name)
