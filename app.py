@@ -85,8 +85,13 @@ with st.sidebar:
     
     # Check if we have data to visualize
     if st.session_state.rag_system and st.session_state.rag_system.is_ready():
-        if st.button("📄 View All Chunks", type="primary", use_container_width=True):
-            st.switch_page("pages/1_Chunking_Visualization.py")
+        # Use markdown link for navigation (more reliable than st.switch_page)
+        st.markdown(
+            '<a href="/pages/1_Chunking_Visualization" target="_self">'
+            '<button style="background-color: #1f77b4; color: white; width: 100%; padding: 0.5rem; border-radius: 5px; border: none; font-weight: bold; cursor: pointer;">'
+            '📄 View All Chunks</button></a>',
+            unsafe_allow_html=True
+        )
     else:
         st.info("Process a PDF first to see chunking visualization.")
     
