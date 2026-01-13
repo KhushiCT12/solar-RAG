@@ -256,6 +256,7 @@ if st.session_state.show_chunking and st.session_state.rag_system:
                     scale_x = page_width / pdf_width
                     scale_y = page_height / pdf_height
                     
+                    bbox_count = 0
                     for chunk in page_chunks:
                         chunk_type = chunk['metadata'].get('type', '').lower()
                         bbox = chunk['metadata'].get('bbox')
@@ -288,7 +289,10 @@ if st.session_state.show_chunking and st.session_state.rag_system:
                                 try:
                                     font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 12)
                                 except:
-                                    font = ImageFont.load_default()
+                                    try:
+                                        font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 12)
+                                    except:
+                                        font = ImageFont.load_default()
                                 
                                 label = f"{chunk_type.upper()}"
                                 bbox_text = draw.textbbox((0, 0), label, font=font)
@@ -298,12 +302,20 @@ if st.session_state.show_chunking and st.session_state.rag_system:
                                 # Draw label background
                                 draw.rectangle([x0, y0 - text_height - 4, x0 + text_width + 4, y0], fill=color)
                                 draw.text((x0 + 2, y0 - text_height - 2), label, fill='white', font=font)
+                                bbox_count += 1
                             except Exception as e:
                                 # Skip if bbox conversion fails
                                 pass
                     
                     # Display the annotated page image
-                    st.image(page_image, caption=f"Page {selected_page} with Chunk Bounding Boxes", use_container_width=True)
+                    caption = f"Page {selected_page} with Chunk Bounding Boxes"
+                    if bbox_count < len(page_chunks):
+                        caption += f" ({bbox_count}/{len(page_chunks)} chunks have bounding boxes)"
+                    st.image(page_image, caption=caption, use_container_width=True)
+                    
+                    if bbox_count == 0:
+                        st.info("ℹ️ No bounding boxes found. You may need to reprocess the PDF to extract bounding box coordinates.")
+                    
                     pdf_processor.close()
                 else:
                     st.info("PDF file not found. Cannot render page image.")
