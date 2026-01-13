@@ -248,42 +248,59 @@ if st.session_state.show_chunking and st.session_state.rag_system:
                     page_chunks = chunks_by_page[selected_page]
                     
                     # Draw bounding boxes for each chunk
+                    pdf_page = pdf_processor.doc[selected_page - 1]
+                    pdf_width = pdf_page.rect.width
+                    pdf_height = pdf_page.rect.height
+                    
+                    # Scale factors
+                    scale_x = page_width / pdf_width
+                    scale_y = page_height / pdf_height
+                    
                     for chunk in page_chunks:
                         chunk_type = chunk['metadata'].get('type', '').lower()
                         bbox = chunk['metadata'].get('bbox')
                         
-                        if bbox:
-                            # Convert PDF coordinates to image coordinates
-                            # PDF coordinates: (x0, y0, x1, y1) where y0 is from bottom
-                            # Image coordinates: (x, y) where y is from top
-                            
-                            # Get page dimensions from PDF
-                            pdf_page = pdf_processor.doc[selected_page - 1]
-                            pdf_width = pdf_page.rect.width
-                            pdf_height = pdf_page.rect.height
-                            
-                            # Scale factors
-                            scale_x = page_width / pdf_width
-                            scale_y = page_height / pdf_height
-                            
-                            # Convert coordinates
-                            x0 = int(bbox['x0'] * scale_x)
-                            y0 = int((pdf_height - bbox['y1']) * scale_y)  # Flip Y axis
-                            x1 = int(bbox['x1'] * scale_x)
-                            y1 = int((pdf_height - bbox['y0']) * scale_y)  # Flip Y axis
-                            
-                            # Choose color based on chunk type
-                            if chunk_type == 'text':
-                                color = '#28a745'  # Green
-                            elif chunk_type == 'table':
-                                color = '#6f42c1'  # Purple
-                            elif chunk_type == 'image':
-                                color = '#dc3545'  # Red
-                            else:
-                                color = '#000000'  # Black
-                            
-                            # Draw rectangle
-                            draw.rectangle([x0, y0, x1, y1], outline=color, width=3)
+                        if bbox and isinstance(bbox, dict):
+                            try:
+                                # Convert PDF coordinates to image coordinates
+                                # PDF coordinates: (x0, y0, x1, y1) where y0 is from bottom
+                                # Image coordinates: (x, y) where y is from top
+                                
+                                x0 = int(bbox.get('x0', 0) * scale_x)
+                                y0 = int((pdf_height - bbox.get('y1', pdf_height)) * scale_y)  # Flip Y axis
+                                x1 = int(bbox.get('x1', pdf_width) * scale_x)
+                                y1 = int((pdf_height - bbox.get('y0', 0)) * scale_y)  # Flip Y axis
+                                
+                                # Choose color based on chunk type
+                                if chunk_type == 'text':
+                                    color = '#28a745'  # Green
+                                elif chunk_type == 'table':
+                                    color = '#6f42c1'  # Purple
+                                elif chunk_type == 'image':
+                                    color = '#dc3545'  # Red
+                                else:
+                                    color = '#000000'  # Black
+                                
+                                # Draw rectangle with label
+                                draw.rectangle([x0, y0, x1, y1], outline=color, width=3)
+                                
+                                # Add label
+                                try:
+                                    font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 12)
+                                except:
+                                    font = ImageFont.load_default()
+                                
+                                label = f"{chunk_type.upper()}"
+                                bbox_text = draw.textbbox((0, 0), label, font=font)
+                                text_width = bbox_text[2] - bbox_text[0]
+                                text_height = bbox_text[3] - bbox_text[1]
+                                
+                                # Draw label background
+                                draw.rectangle([x0, y0 - text_height - 4, x0 + text_width + 4, y0], fill=color)
+                                draw.text((x0 + 2, y0 - text_height - 2), label, fill='white', font=font)
+                            except Exception as e:
+                                # Skip if bbox conversion fails
+                                pass
                     
                     # Display the annotated page image
                     st.image(page_image, caption=f"Page {selected_page} with Chunk Bounding Boxes", use_container_width=True)
