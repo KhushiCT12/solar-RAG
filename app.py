@@ -7,6 +7,9 @@ import os
 from rag_system import RAGSystem
 from config import PDF_PATH
 import time
+from pdf_processor import PDFProcessor
+from PIL import Image, ImageDraw, ImageFont
+import io
 
 
 # Page configuration
@@ -226,6 +229,70 @@ if st.session_state.show_chunking and st.session_state.rag_system:
             )
             
             st.markdown(f"### 📄 Page {selected_page} - {len(chunks_by_page[selected_page])} Chunks")
+            
+            # Render and display the actual PDF page
+            try:
+                pdf_path = PDF_PATH if os.path.exists(PDF_PATH) else None
+                if not pdf_path and st.session_state.rag_system and hasattr(st.session_state.rag_system, 'pdf_processor'):
+                    pdf_path = st.session_state.rag_system.pdf_processor.pdf_path if st.session_state.rag_system.pdf_processor else None
+                
+                if pdf_path and os.path.exists(pdf_path):
+                    pdf_processor = PDFProcessor(pdf_path)
+                    page_image = pdf_processor.render_page_as_image(selected_page, zoom=1.5)
+                    
+                    # Draw bounding boxes on the page
+                    draw = ImageDraw.Draw(page_image)
+                    page_width, page_height = page_image.size
+                    
+                    # Get chunks for this page
+                    page_chunks = chunks_by_page[selected_page]
+                    
+                    # Draw bounding boxes for each chunk
+                    for chunk in page_chunks:
+                        chunk_type = chunk['metadata'].get('type', '').lower()
+                        bbox = chunk['metadata'].get('bbox')
+                        
+                        if bbox:
+                            # Convert PDF coordinates to image coordinates
+                            # PDF coordinates: (x0, y0, x1, y1) where y0 is from bottom
+                            # Image coordinates: (x, y) where y is from top
+                            
+                            # Get page dimensions from PDF
+                            pdf_page = pdf_processor.doc[selected_page - 1]
+                            pdf_width = pdf_page.rect.width
+                            pdf_height = pdf_page.rect.height
+                            
+                            # Scale factors
+                            scale_x = page_width / pdf_width
+                            scale_y = page_height / pdf_height
+                            
+                            # Convert coordinates
+                            x0 = int(bbox['x0'] * scale_x)
+                            y0 = int((pdf_height - bbox['y1']) * scale_y)  # Flip Y axis
+                            x1 = int(bbox['x1'] * scale_x)
+                            y1 = int((pdf_height - bbox['y0']) * scale_y)  # Flip Y axis
+                            
+                            # Choose color based on chunk type
+                            if chunk_type == 'text':
+                                color = '#28a745'  # Green
+                            elif chunk_type == 'table':
+                                color = '#6f42c1'  # Purple
+                            elif chunk_type == 'image':
+                                color = '#dc3545'  # Red
+                            else:
+                                color = '#000000'  # Black
+                            
+                            # Draw rectangle
+                            draw.rectangle([x0, y0, x1, y1], outline=color, width=3)
+                    
+                    # Display the annotated page image
+                    st.image(page_image, caption=f"Page {selected_page} with Chunk Bounding Boxes", use_container_width=True)
+                    pdf_processor.close()
+                else:
+                    st.info("PDF file not found. Cannot render page image.")
+            except Exception as e:
+                st.warning(f"Could not render PDF page: {str(e)}")
+                st.info("Showing chunks without page visualization.")
             
             # Display chunks for selected page
             page_chunks = chunks_by_page[selected_page]

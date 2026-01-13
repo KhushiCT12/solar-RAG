@@ -19,27 +19,39 @@ class PDFProcessor:
         self.doc = fitz.open(pdf_path)
         
     def extract_text(self) -> List[Dict]:
-        """Extract all text from PDF pages"""
+        """Extract all text from PDF pages with bounding boxes"""
         text_chunks = []
         
         with pdfplumber.open(self.pdf_path) as pdf:
             for page_num, page in enumerate(pdf.pages, 1):
                 text = page.extract_text()
                 if text and text.strip():
+                    # Extract words with their positions
+                    words = page.extract_words()
+                    bboxes = []
+                    if words:
+                        # Get bounding box of all words on the page
+                        x0 = min(w['x0'] for w in words)
+                        y0 = min(w['top'] for w in words)
+                        x1 = max(w['x1'] for w in words)
+                        y1 = max(w['bottom'] for w in words)
+                        bboxes = [{'x0': x0, 'y0': y0, 'x1': x1, 'y1': y1}]
+                    
                     text_chunks.append({
                         'type': 'text',
                         'page': page_num,
                         'content': text.strip(),
                         'metadata': {
                             'page_number': page_num,
-                            'total_pages': len(pdf.pages)
+                            'total_pages': len(pdf.pages),
+                            'bboxes': bboxes
                         }
                     })
         
         return text_chunks
     
     def extract_images(self) -> List[Dict]:
-        """Extract all images from PDF pages"""
+        """Extract all images from PDF pages with bounding boxes"""
         image_chunks = []
         
         for page_num in range(len(self.doc)):
@@ -53,6 +65,13 @@ class PDFProcessor:
                     image_bytes = base_image["image"]
                     image_ext = base_image["ext"]
                     
+                    # Get image bounding box
+                    image_rects = page.get_image_rects(xref)
+                    bbox = None
+                    if image_rects:
+                        rect = image_rects[0]  # Get first rectangle
+                        bbox = {'x0': rect.x0, 'y0': rect.y0, 'x1': rect.x1, 'y1': rect.y1}
+                    
                     # Convert to base64 for storage
                     image_b64 = base64.b64encode(image_bytes).decode('utf-8')
                     
@@ -65,7 +84,8 @@ class PDFProcessor:
                             'image_index': img_index,
                             'format': image_ext,
                             'width': base_image.get('width', 0),
-                            'height': base_image.get('height', 0)
+                            'height': base_image.get('height', 0),
+                            'bbox': bbox
                         }
                     })
                 except Exception as e:
@@ -74,8 +94,19 @@ class PDFProcessor:
         
         return image_chunks
     
+    def render_page_as_image(self, page_num: int, zoom: float = 2.0) -> Image.Image:
+        """Render a PDF page as a PIL Image"""
+        if page_num < 1 or page_num > len(self.doc):
+            raise ValueError(f"Page number {page_num} out of range")
+        
+        page = self.doc[page_num - 1]  # 0-indexed
+        mat = fitz.Matrix(zoom, zoom)  # Zoom factor for better quality
+        pix = page.get_pixmap(matrix=mat)
+        img_data = pix.tobytes("png")
+        return Image.open(io.BytesIO(img_data))
+    
     def extract_tables(self) -> List[Dict]:
-        """Extract all tables from PDF pages"""
+        """Extract all tables from PDF pages with bounding boxes"""
         table_chunks = []
         
         with pdfplumber.open(self.pdf_path) as pdf:
@@ -84,6 +115,17 @@ class PDFProcessor:
                 
                 for table_index, table in enumerate(tables):
                     if table:
+                        # Get table bounding box
+                        table_bbox = None
+                        try:
+                            # Try to find table bounding box
+                            table_obj = page.find_tables()[table_index] if page.find_tables() else None
+                            if table_obj:
+                                bbox = table_obj.bbox
+                                table_bbox = {'x0': bbox[0], 'y0': bbox[1], 'x1': bbox[2], 'y1': bbox[3]}
+                        except:
+                            pass
+                        
                         # Convert table to DataFrame for easier handling
                         df = pd.DataFrame(table[1:], columns=table[0] if table[0] else None)
                         
@@ -99,7 +141,8 @@ class PDFProcessor:
                                 'page_number': page_num,
                                 'table_index': table_index,
                                 'rows': len(table),
-                                'columns': len(table[0]) if table[0] else 0
+                                'columns': len(table[0]) if table[0] else 0,
+                                'bbox': table_bbox
                             }
                         })
         
