@@ -3,6 +3,12 @@ Chunking Visualization Page
 Shows all chunks with colored boxes (green for text, purple for tables, red for images)
 """
 import streamlit as st
+import sys
+import os
+
+# Add parent directory to path to import modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from vector_store import VectorStore
 from config import CHROMA_DB_PATH, CHROMA_COLLECTION_NAME
 
