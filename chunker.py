@@ -44,30 +44,24 @@ class Chunker:
     
     @staticmethod
     def chunk_text_content(text_chunks: List[Dict]) -> List[Dict]:
-        """Chunk text content from PDF, preserving bounding box info"""
+        """Chunk text content from PDF"""
         chunked_content = []
         
         for text_item in text_chunks:
             chunks = Chunker.chunk_text(text_item['content'])
             
             for idx, chunk in enumerate(chunks):
-                # Preserve bbox information if available
-                metadata = {
-                    **text_item.get('metadata', {}),
-                    'chunk_index': idx,
-                    'total_chunks': len(chunks)
-                }
-                # Keep bbox if it exists (for full page text, we use the page bbox)
-                if 'bboxes' in text_item.get('metadata', {}):
-                    metadata['bbox'] = text_item['metadata']['bboxes'][0] if text_item['metadata']['bboxes'] else None
-                
                 chunked_content.append({
                     'type': 'text',
                     'page': text_item['page'],
                     'content': chunk,
                     'chunk_index': idx,
                     'total_chunks': len(chunks),
-                    'metadata': metadata
+                    'metadata': {
+                        **text_item['metadata'],
+                        'chunk_index': idx,
+                        'total_chunks': len(chunks)
+                    }
                 })
         
         return chunked_content

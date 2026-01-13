@@ -7,6 +7,8 @@ from chromadb.config import Settings
 from typing import List, Dict, Optional
 from config import CHROMA_DB_PATH, CHROMA_COLLECTION_NAME, TOP_K_RESULTS
 import uuid
+import os
+import shutil
 
 
 class VectorStore:
@@ -16,19 +18,39 @@ class VectorStore:
         self.db_path = db_path
         self.collection_name = collection_name
         
-        # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(path=db_path)
+        # Initialize ChromaDB client with error handling for corruption
+        try:
+            self.client = chromadb.PersistentClient(path=db_path)
+        except Exception as e:
+            # If database is corrupted, reset it
+            if "compaction" in str(e).lower() or "metadata" in str(e).lower():
+                print(f"⚠️ ChromaDB corruption detected. Resetting database...")
+                self._reset_database()
+                self.client = chromadb.PersistentClient(path=db_path)
+            else:
+                raise
         
         # Get or create collection
         try:
             self.collection = self.client.get_collection(name=collection_name)
             print(f"Loaded existing collection: {collection_name}")
-        except:
-            self.collection = self.client.create_collection(
-                name=collection_name,
-                metadata={"description": "RAG system for Radar Solar Energy Storage Report"}
-            )
-            print(f"Created new collection: {collection_name}")
+        except Exception as e:
+            # If collection access fails due to corruption, reset and recreate
+            if "compaction" in str(e).lower() or "metadata" in str(e).lower():
+                print(f"⚠️ Collection corruption detected. Resetting database...")
+                self._reset_database()
+                self.client = chromadb.PersistentClient(path=db_path)
+                self.collection = self.client.create_collection(
+                    name=collection_name,
+                    metadata={"description": "RAG system for Radar Solar Energy Storage Report"}
+                )
+                print(f"Created new collection: {collection_name}")
+            else:
+                self.collection = self.client.create_collection(
+                    name=collection_name,
+                    metadata={"description": "RAG system for Radar Solar Energy Storage Report"}
+                )
+                print(f"Created new collection: {collection_name}")
     
     def add_chunks(self, chunks: List[Dict]):
         """Add chunks with embeddings to the vector store"""
@@ -58,15 +80,35 @@ class VectorStore:
             }
             metadatas.append(metadata)
         
-        # Add to collection
-        self.collection.add(
-            ids=ids,
-            embeddings=embeddings,
-            documents=documents,
-            metadatas=metadatas
-        )
-        
-        print(f"Added {len(chunks)} chunks to vector store")
+        # Add to collection with error handling for corruption
+        try:
+            self.collection.add(
+                ids=ids,
+                embeddings=embeddings,
+                documents=documents,
+                metadatas=metadatas
+            )
+            print(f"Added {len(chunks)} chunks to vector store")
+        except Exception as e:
+            # If corruption detected during write, reset and retry once
+            if "compaction" in str(e).lower() or "metadata" in str(e).lower():
+                print(f"⚠️ Corruption detected during write. Resetting database and retrying...")
+                self._reset_database()
+                self.client = chromadb.PersistentClient(path=self.db_path)
+                self.collection = self.client.create_collection(
+                    name=self.collection_name,
+                    metadata={"description": "RAG system for Radar Solar Energy Storage Report"}
+                )
+                # Retry the add operation
+                self.collection.add(
+                    ids=ids,
+                    embeddings=embeddings,
+                    documents=documents,
+                    metadatas=metadatas
+                )
+                print(f"Added {len(chunks)} chunks to vector store (after reset)")
+            else:
+                raise
     
     def search(self, query_embedding: List[float], top_k: int = TOP_K_RESULTS, 
                content_type: Optional[str] = None) -> List[Dict]:
@@ -139,44 +181,38 @@ class VectorStore:
             print(f"Error getting chunks by type: {e}")
             return {'text': [], 'table': [], 'image': []}
     
-    def get_all_chunks_by_page(self) -> Dict[int, List[Dict]]:
-        """Get all chunks grouped by page number"""
+    def _reset_database(self):
+        """Reset the entire ChromaDB database by deleting and recreating the directory"""
         try:
-            # Get all chunks from the collection
-            results = self.collection.get()
-            
-            chunks_by_page = {}
-            
-            if results['ids']:
-                for i in range(len(results['ids'])):
-                    chunk = {
-                        'id': results['ids'][i],
-                        'content': results['documents'][i] if 'documents' in results else '',
-                        'metadata': results['metadatas'][i] if 'metadatas' in results else {}
-                    }
-                    page = chunk['metadata'].get('page', 0)
-                    if page not in chunks_by_page:
-                        chunks_by_page[page] = []
-                    chunks_by_page[page].append(chunk)
-            
-            # Sort chunks within each page by type and chunk index
-            for page in chunks_by_page:
-                chunks_by_page[page].sort(key=lambda x: (
-                    x['metadata'].get('type', 'text'),
-                    x['metadata'].get('chunk_index', 0)
-                ))
-            
-            return chunks_by_page
+            if os.path.exists(self.db_path):
+                shutil.rmtree(self.db_path)
+                print(f"Deleted corrupted database at: {self.db_path}")
         except Exception as e:
-            print(f"Error getting chunks by page: {e}")
-            return {}
+            print(f"Error resetting database: {e}")
+            raise
     
     def clear_collection(self):
         """Clear all data from the collection"""
-        self.client.delete_collection(name=self.collection_name)
+        try:
+            self.client.delete_collection(name=self.collection_name)
+        except:
+            # If deletion fails, reset the entire database
+            self._reset_database()
+            self.client = chromadb.PersistentClient(path=self.db_path)
+        
         self.collection = self.client.create_collection(
             name=self.collection_name,
             metadata={"description": "RAG system for Radar Solar Energy Storage Report"}
         )
         print(f"Cleared collection: {self.collection_name}")
+    
+    def reset_database(self):
+        """Public method to reset the entire database (for recovery from corruption)"""
+        self._reset_database()
+        self.client = chromadb.PersistentClient(path=self.db_path)
+        self.collection = self.client.create_collection(
+            name=self.collection_name,
+            metadata={"description": "RAG system for Radar Solar Energy Storage Report"}
+        )
+        print(f"Database reset complete. New collection created: {self.collection_name}")
 
