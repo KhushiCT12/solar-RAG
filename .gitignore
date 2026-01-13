@@ -1,0 +1,40 @@
+# Virtual Environment
+.raaag/
+venv/
+env/
+
+# ChromaDB
+chroma_db/
+*.db
+
+# Uploads
+uploads/
+*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Config with API keys (use config.example.py as template)
+config.py
+
+# Logs
+*.log
+
