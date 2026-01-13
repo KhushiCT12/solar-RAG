@@ -11,7 +11,7 @@ import time
 
 # Page configuration
 st.set_page_config(
-    page_title="Radar Solar RAG System",
+    page_title="CIR Solar RAG System",
     page_icon="☀️",
     layout="wide",
     initial_sidebar_state="expanded"
