@@ -73,8 +73,8 @@ if st.session_state.rag_system is None:
         pass
 
 # Header
-st.markdown('<h1 class="main-header">☀️ Radar Solar RAG System</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Query the Desktop Due Diligence Report for Solar + Energy Storage Project</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">☀️ CIR RAG System</h1>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Retrieval-Augmented Generation System for Document Querying</p>', unsafe_allow_html=True)
 
 # Sidebar
 with st.sidebar:
@@ -82,7 +82,7 @@ with st.sidebar:
     
     # PDF file uploader
     st.subheader("📄 PDF Document")
-    pdf_file = st.file_uploader("Upload PDF", type=['pdf'], help="Upload the Radar Solar report PDF")
+    pdf_file = st.file_uploader("Upload PDF", type=['pdf'], help="Upload a PDF document to process")
     
     if pdf_file is not None:
         # Save uploaded file
@@ -204,25 +204,6 @@ if st.session_state.processed and st.session_state.rag_system:
             
             # Show number of sources
             st.info(f"📊 Found {result['num_sources']} relevant sources")
-    
-    # Example questions
-    st.markdown("---")
-    st.subheader("💡 Example Questions")
-    example_questions = [
-        "What is the project capacity and location?",
-        "What are the environmental concerns mentioned in the report?",
-        "What is the interconnection status?",
-        "What are the financial incentives available?",
-        "What is the expected energy yield?",
-        "What are the risks and constraints identified?",
-    ]
-    
-    cols = st.columns(2)
-    for i, question in enumerate(example_questions):
-        with cols[i % 2]:
-            if st.button(question, key=f"example_{i}", use_container_width=True):
-                st.session_state.query_input = question
-                st.rerun()
 
 else:
     # Welcome message
