@@ -1,6 +1,6 @@
 """
 Streamlit UI for the RAG System
-Beautiful interface for querying the Radar Solar Energy Storage Report
+Beautiful interface for querying documents using CIR RAG System
 """
 import streamlit as st
 import os
@@ -11,7 +11,7 @@ import time
 
 # Page configuration
 st.set_page_config(
-    page_title="CIR Solar RAG System",
+    page_title="CIR RAG System",
     page_icon="☀️",
     layout="wide",
     initial_sidebar_state="expanded"
