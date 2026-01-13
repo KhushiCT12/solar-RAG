@@ -60,9 +60,9 @@ class RAGSystem:
         print(f"  - Extracted {len(content['images'])} images")
         print(f"  - Extracted {len(content['tables'])} tables")
         
-        # Step 2: Chunk the content
-        print("\nStep 2: Chunking content...")
-        chunked_content = self.chunker.chunk_all(content)
+        # Step 2: Chunk the content (using section-based chunking to keep related content together)
+        print("\nStep 2: Chunking content by sections...")
+        chunked_content = self.chunker.chunk_all(content, use_sections=True)
         
         total_chunks = (
             len(chunked_content['text']) + 

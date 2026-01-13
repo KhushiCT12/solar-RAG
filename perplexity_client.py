@@ -65,15 +65,43 @@ class PerplexityClient:
         """Query the RAG system using Perplexity with retrieved context"""
         try:
             # Format context for the prompt
-            context_text = "\n\n".join([
-                f"[Document: {item.get('metadata', {}).get('document_name', 'Unknown')} | {item.get('metadata', {}).get('type', 'unknown').upper()} - Page {item.get('metadata', {}).get('page', 'N/A')}]:\n{item.get('content', '')[:500]}"
-                for item in context
-            ])
+            # Give more characters to tables since they contain structured data
+            context_parts = []
+            for item in context:
+                content_type = item.get('metadata', {}).get('type', 'unknown')
+                doc_name = item.get('metadata', {}).get('document_name', 'Unknown')
+                page = item.get('metadata', {}).get('page', 'N/A')
+                content = item.get('content', '')
+                
+                # Allocate more characters for tables (they need full data)
+                if content_type == 'table':
+                    # Tables can be long, allow up to 3000 characters
+                    content_snippet = content[:3000] if len(content) > 3000 else content
+                    if len(content) > 3000:
+                        content_snippet += "\n[... table continues ...]"
+                elif content_type == 'text':
+                    # Text chunks get 1500 characters
+                    content_snippet = content[:1500] if len(content) > 1500 else content
+                else:
+                    # Images and others get 500 characters
+                    content_snippet = content[:500] if len(content) > 500 else content
+                
+                context_parts.append(
+                    f"[Document: {doc_name} | {content_type.upper()} - Page {page}]:\n{content_snippet}"
+                )
+            
+            context_text = "\n\n".join(context_parts)
+            
+            # Check if we have tables in the context
+            has_tables = any(item.get('metadata', {}).get('type') == 'table' for item in context)
+            table_note = "\n\nNote: Some context includes TABLE data. Please carefully analyze table content including all rows, columns, and values when answering the question." if has_tables else ""
             
             prompt = f"""Based on the following context from a solar energy storage project report, please answer the question. If the answer is not in the context, say so.
 
+When analyzing tables, examine all rows and columns carefully. Extract specific values, numbers, and relationships from the table data.
+
 Context:
-{context_text}
+{context_text}{table_note}
 
 Question: {question}
 
@@ -86,7 +114,7 @@ Answer:"""
                     "messages": [
                         {
                             "role": "system",
-                            "content": "You are a helpful assistant that answers questions based on provided context. Be accurate and cite page numbers when possible."
+                            "content": "You are a helpful assistant that answers questions based on provided context. Be accurate and do not cite page numbers."
                         },
                         {
                             "role": "user",

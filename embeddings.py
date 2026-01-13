@@ -41,7 +41,8 @@ class EmbeddingGenerator:
             content = chunk['content']
             metadata = chunk.get('metadata', {})
             
-            if content_type == 'text':
+            if content_type == 'text' or content_type == 'mixed':
+                # 'mixed' contains text + tables, treat as text for embedding
                 embedding = self.generate_text_embedding(content)
             elif content_type == 'image':
                 embedding = self.generate_image_embedding(content, metadata)
