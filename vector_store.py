@@ -111,6 +111,34 @@ class VectorStore:
         except:
             return False
     
+    def get_all_chunks_by_type(self) -> Dict[str, List[Dict]]:
+        """Get all chunks grouped by type"""
+        try:
+            # Get all chunks from the collection
+            results = self.collection.get()
+            
+            chunks_by_type = {
+                'text': [],
+                'table': [],
+                'image': []
+            }
+            
+            if results['ids']:
+                for i in range(len(results['ids'])):
+                    chunk = {
+                        'id': results['ids'][i],
+                        'content': results['documents'][i] if 'documents' in results else '',
+                        'metadata': results['metadatas'][i] if 'metadatas' in results else {}
+                    }
+                    chunk_type = chunk['metadata'].get('type', 'text').lower()
+                    if chunk_type in chunks_by_type:
+                        chunks_by_type[chunk_type].append(chunk)
+            
+            return chunks_by_type
+        except Exception as e:
+            print(f"Error getting chunks by type: {e}")
+            return {'text': [], 'table': [], 'image': []}
+    
     def clear_collection(self):
         """Clear all data from the collection"""
         self.client.delete_collection(name=self.collection_name)
