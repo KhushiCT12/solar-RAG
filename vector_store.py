@@ -35,9 +35,11 @@ class VectorStore:
             self.collection = self.client.get_collection(name=collection_name)
             print(f"Loaded existing collection: {collection_name}")
         except Exception as e:
-            # If collection access fails due to corruption, reset and recreate
-            if "compaction" in str(e).lower() or "metadata" in str(e).lower():
-                print(f"⚠️ Collection corruption detected. Resetting database...")
+            error_str = str(e).lower()
+            # If collection access fails due to corruption or schema mismatch, reset and recreate
+            if "compaction" in error_str or "metadata" in error_str or "no such column" in error_str or "topic" in error_str:
+                print(f"⚠️ Database schema incompatibility detected. Resetting database...")
+                print(f"   (This will clear existing data. If you need to preserve it, backup chroma_db/ first)")
                 self._reset_database()
                 self.client = chromadb.PersistentClient(path=db_path)
                 self.collection = self.client.create_collection(
