@@ -3,6 +3,7 @@ Main RAG System
 Orchestrates the entire RAG pipeline
 """
 from pdf_processor import PDFProcessor
+from excel_processor import ExcelProcessor
 from chunker import Chunker
 from perplexity_client import PerplexityClient
 from embeddings import EmbeddingGenerator
@@ -17,22 +18,43 @@ class RAGSystem:
     
     def __init__(self):
         self.pdf_processor = None
+        self.excel_processor = None
         self.chunker = Chunker()
         self.perplexity_client = PerplexityClient()
         self.embedding_generator = EmbeddingGenerator()
         self.vector_store = VectorStore()
     
-    def process_pdf(self, pdf_path: str = PDF_PATH):
-        """Process PDF and build the knowledge base"""
-        print(f"Processing PDF: {pdf_path}")
+    def process_document(self, file_path: str, clear_existing: bool = False):
+        """Process a document (PDF, Excel, etc.) and add to knowledge base
         
-        if not os.path.exists(pdf_path):
-            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+        Args:
+            file_path: Path to the document file
+            clear_existing: If True, clears existing data before processing. If False, adds to existing data.
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
         
-        # Step 1: Extract content from PDF
-        print("Step 1: Extracting content from PDF...")
-        self.pdf_processor = PDFProcessor(pdf_path)
-        content = self.pdf_processor.extract_all()
+        # Get document info
+        document_name = os.path.basename(file_path)
+        document_type = os.path.splitext(document_name)[1].lower()
+        
+        print(f"Processing document: {document_name} ({document_type})")
+        
+        # Clear existing data if requested
+        if clear_existing:
+            print("Clearing existing data...")
+            self.vector_store.clear_collection()
+        
+        # Step 1: Extract content based on file type
+        print("Step 1: Extracting content...")
+        if document_type == '.pdf':
+            self.pdf_processor = PDFProcessor(file_path)
+            content = self.pdf_processor.extract_all()
+        elif document_type in ['.xlsx', '.xls']:
+            self.excel_processor = ExcelProcessor(file_path)
+            content = self.excel_processor.extract_all()
+        else:
+            raise ValueError(f"Unsupported file type: {document_type}. Supported: .pdf, .xlsx, .xls")
         
         print(f"  - Extracted {len(content['text'])} text chunks")
         print(f"  - Extracted {len(content['images'])} images")
@@ -52,43 +74,42 @@ class RAGSystem:
         print(f"    - {len(chunked_content['images'])} image chunks")
         print(f"    - {len(chunked_content['tables'])} table chunks")
         
-        # Step 3: Generate summaries using Perplexity
-        print("\nStep 3: Generating AI summaries...")
+        # Add document metadata to all chunks
+        for chunk_type in ['text', 'images', 'tables']:
+            for chunk in chunked_content[chunk_type]:
+                chunk['metadata'] = chunk.get('metadata', {})
+                chunk['metadata']['document_name'] = document_name
+                chunk['metadata']['document_type'] = document_type
+                chunk['metadata']['document_path'] = file_path
+        
+        # Step 3: Generate embeddings
+        print("\nStep 3: Generating embeddings...")
         all_chunks = (
             chunked_content['text'] + 
             chunked_content['images'] + 
             chunked_content['tables']
         )
         
-        for i, chunk in enumerate(all_chunks):
-            if i % 10 == 0:
-                print(f"  - Processing chunk {i+1}/{total_chunks}...")
-            
-            # Generate summary
-            summary = self.perplexity_client.summarize(
-                chunk['content'], 
-                chunk['type']
-            )
-            chunk['summary'] = summary
-        
-        print("  - All summaries generated")
-        
-        # Step 4: Generate embeddings
-        print("\nStep 4: Generating embeddings...")
         embedded_chunks = self.embedding_generator.generate_embeddings_for_chunks(all_chunks)
         print(f"  - Generated {len(embedded_chunks)} embeddings")
         
-        # Step 5: Store in vector database
-        print("\nStep 5: Storing in vector database...")
+        # Step 4: Store in vector database (additive - doesn't clear existing)
+        print("\nStep 4: Storing in vector database...")
         self.vector_store.add_chunks(embedded_chunks)
         print("  - All chunks stored successfully")
         
-        # Close PDF processor
+        # Close processors
         if self.pdf_processor:
             self.pdf_processor.close()
+        if self.excel_processor:
+            pass  # Excel processor doesn't need closing
         
-        print("\n✅ PDF processing complete!")
+        print(f"\n✅ Document processing complete! ({document_name})")
         return self.vector_store.get_collection_info()
+    
+    def process_pdf(self, pdf_path: str = PDF_PATH, clear_existing: bool = False):
+        """Process PDF and build the knowledge base (backward compatibility)"""
+        return self.process_document(pdf_path, clear_existing)
     
     def query(self, question: str, top_k: int = 5) -> Dict:
         """Query the RAG system"""

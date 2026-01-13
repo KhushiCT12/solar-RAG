@@ -66,7 +66,7 @@ class PerplexityClient:
         try:
             # Format context for the prompt
             context_text = "\n\n".join([
-                f"[{item.get('metadata', {}).get('type', 'unknown').upper()} - Page {item.get('metadata', {}).get('page', 'N/A')}]:\n{item.get('content', '')[:500]}"
+                f"[Document: {item.get('metadata', {}).get('document_name', 'Unknown')} | {item.get('metadata', {}).get('type', 'unknown').upper()} - Page {item.get('metadata', {}).get('page', 'N/A')}]:\n{item.get('content', '')[:500]}"
                 for item in context
             ])
             
