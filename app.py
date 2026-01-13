@@ -80,88 +80,13 @@ st.markdown('<p class="sub-header">Retrieval-Augmented Generation System for Doc
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # Chunking Visualization Tab
+    # Chunking Visualization Button
     st.subheader("📊 Chunking Visualization")
     
     # Check if we have data to visualize
     if st.session_state.rag_system and st.session_state.rag_system.is_ready():
-        try:
-            chunks_by_type = st.session_state.rag_system.vector_store.get_all_chunks_by_type()
-            
-            # Summary
-            total_text = len(chunks_by_type['text'])
-            total_tables = len(chunks_by_type['table'])
-            total_images = len(chunks_by_type['image'])
-            total_chunks = total_text + total_tables + total_images
-            
-            if total_chunks > 0:
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Text", total_text, delta=None)
-                with col2:
-                    st.metric("Tables", total_tables, delta=None)
-                with col3:
-                    st.metric("Images", total_images, delta=None)
-                
-                # Show chunking visualization
-                with st.expander("📄 View Chunking Details", expanded=False):
-                    # Text chunks in green boxes
-                    if total_text > 0:
-                        st.markdown("### 📝 Text Chunks")
-                        for i, chunk in enumerate(chunks_by_type['text'][:10]):  # Show first 10
-                            page = chunk['metadata'].get('page', 'N/A')
-                            content_preview = chunk['content'][:200] + "..." if len(chunk['content']) > 200 else chunk['content']
-                            st.markdown(
-                                f"""
-                                <div style="background-color: #d4edda; border: 2px solid #28a745; border-radius: 5px; padding: 10px; margin: 5px 0;">
-                                    <strong>Text Chunk #{i+1}</strong> - Page {page}<br>
-                                    <small>{content_preview}</small>
-                                </div>
-                                """,
-                                unsafe_allow_html=True
-                            )
-                        if total_text > 10:
-                            st.caption(f"... and {total_text - 10} more text chunks")
-                    
-                    # Table chunks in purple boxes
-                    if total_tables > 0:
-                        st.markdown("### 📊 Table Chunks")
-                        for i, chunk in enumerate(chunks_by_type['table'][:10]):  # Show first 10
-                            page = chunk['metadata'].get('page', 'N/A')
-                            content_preview = chunk['content'][:200] + "..." if len(chunk['content']) > 200 else chunk['content']
-                            st.markdown(
-                                f"""
-                                <div style="background-color: #e2d9f3; border: 2px solid #6f42c1; border-radius: 5px; padding: 10px; margin: 5px 0;">
-                                    <strong>Table Chunk #{i+1}</strong> - Page {page}<br>
-                                    <small><pre style="white-space: pre-wrap; font-size: 0.8em;">{content_preview}</pre></small>
-                                </div>
-                                """,
-                                unsafe_allow_html=True
-                            )
-                        if total_tables > 10:
-                            st.caption(f"... and {total_tables - 10} more table chunks")
-                    
-                    # Image chunks in red boxes
-                    if total_images > 0:
-                        st.markdown("### 🖼️ Image Chunks")
-                        for i, chunk in enumerate(chunks_by_type['image'][:10]):  # Show first 10
-                            page = chunk['metadata'].get('page', 'N/A')
-                            img_index = chunk['metadata'].get('image_index', 'N/A')
-                            st.markdown(
-                                f"""
-                                <div style="background-color: #f8d7da; border: 2px solid #dc3545; border-radius: 5px; padding: 10px; margin: 5px 0;">
-                                    <strong>Image Chunk #{i+1}</strong> - Page {page}, Image #{img_index}<br>
-                                    <small>Format: {chunk['metadata'].get('format', 'N/A')}</small>
-                                </div>
-                                """,
-                                unsafe_allow_html=True
-                            )
-                        if total_images > 10:
-                            st.caption(f"... and {total_images - 10} more image chunks")
-            else:
-                st.info("No chunks found in the database.")
-        except Exception as e:
-            st.warning(f"Unable to load chunking data: {str(e)}")
+        if st.button("📄 View All Chunks", type="primary", use_container_width=True):
+            st.switch_page("pages/1_Chunking_Visualization.py")
     else:
         st.info("Process a PDF first to see chunking visualization.")
     
