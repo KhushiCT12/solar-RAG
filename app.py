@@ -60,6 +60,8 @@ if 'processed' not in st.session_state:
     st.session_state.processed = False
 if 'processing' not in st.session_state:
     st.session_state.processing = False
+if 'show_chunking' not in st.session_state:
+    st.session_state.show_chunking = False
 
 # Auto-load RAG system if data exists
 if st.session_state.rag_system is None:
@@ -85,13 +87,9 @@ with st.sidebar:
     
     # Check if we have data to visualize
     if st.session_state.rag_system and st.session_state.rag_system.is_ready():
-        # Use markdown link for navigation (more reliable than st.switch_page)
-        st.markdown(
-            '<a href="/pages/1_Chunking_Visualization" target="_self">'
-            '<button style="background-color: #1f77b4; color: white; width: 100%; padding: 0.5rem; border-radius: 5px; border: none; font-weight: bold; cursor: pointer;">'
-            '📄 View All Chunks</button></a>',
-            unsafe_allow_html=True
-        )
+        if st.button("📄 View All Chunks", type="primary", use_container_width=True):
+            st.session_state.show_chunking = True
+            st.rerun()
     else:
         st.info("Process a PDF first to see chunking visualization.")
     
@@ -177,7 +175,116 @@ with st.sidebar:
             st.error(f"Error loading stats: {str(e)}")
 
 # Main content area
-if st.session_state.processed and st.session_state.rag_system:
+# Show chunking visualization if requested
+if st.session_state.show_chunking and st.session_state.rag_system:
+    # Import the chunking visualization content
+    try:
+        from pages.chunking_visualization import show_chunking_page
+        show_chunking_page(st.session_state.rag_system.vector_store)
+    except ImportError:
+        # Fallback: show inline visualization
+        st.title("📊 Chunking Visualization")
+        st.markdown("View how your PDF has been chunked into text, tables, and images")
+        
+        if st.button("← Back to Query"):
+            st.session_state.show_chunking = False
+            st.rerun()
+        
+        chunks_by_type = st.session_state.rag_system.vector_store.get_all_chunks_by_type()
+        
+        total_text = len(chunks_by_type['text'])
+        total_tables = len(chunks_by_type['table'])
+        total_images = len(chunks_by_type['image'])
+        total_chunks = total_text + total_tables + total_images
+        
+        # Summary metrics
+        st.markdown("### Summary")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Chunks", total_chunks)
+        with col2:
+            st.metric("📝 Text Chunks", total_text)
+        with col3:
+            st.metric("📊 Table Chunks", total_tables)
+        with col4:
+            st.metric("🖼️ Image Chunks", total_images)
+        
+        st.divider()
+        
+        # Create tabs for each chunk type
+        tab1, tab2, tab3 = st.tabs([
+            f"📝 Text Chunks ({total_text})",
+            f"📊 Table Chunks ({total_tables})",
+            f"🖼️ Image Chunks ({total_images})"
+        ])
+        
+        # Text Chunks Tab
+        with tab1:
+            if total_text > 0:
+                for i, chunk in enumerate(chunks_by_type['text'], 1):
+                    page = chunk['metadata'].get('page', 'N/A')
+                    content = chunk['content']
+                    display_content = content[:500] + "..." if len(content) > 500 else content
+                    
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #d4edda; border: 2px solid #28a745; border-radius: 8px; padding: 15px; margin: 10px 0;">
+                            <strong>📝 Text Chunk #{i} - Page {page}</strong><br>
+                            <div style="color: #555; margin-top: 8px;">{display_content}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    if len(content) > 500:
+                        with st.expander(f"View full content of Text Chunk #{i}"):
+                            st.text(content)
+            else:
+                st.info("No text chunks found.")
+        
+        # Table Chunks Tab
+        with tab2:
+            if total_tables > 0:
+                for i, chunk in enumerate(chunks_by_type['table'], 1):
+                    page = chunk['metadata'].get('page', 'N/A')
+                    content = chunk['content']
+                    display_content = content[:800] + "..." if len(content) > 800 else content
+                    
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #e2d9f3; border: 2px solid #6f42c1; border-radius: 8px; padding: 15px; margin: 10px 0;">
+                            <strong>📊 Table Chunk #{i} - Page {page}</strong><br>
+                            <pre style="white-space: pre-wrap; font-family: monospace; background: transparent; margin-top: 8px;">{display_content}</pre>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    if len(content) > 800:
+                        with st.expander(f"View full content of Table Chunk #{i}"):
+                            st.text(content)
+            else:
+                st.info("No table chunks found.")
+        
+        # Image Chunks Tab
+        with tab3:
+            if total_images > 0:
+                for i, chunk in enumerate(chunks_by_type['image'], 1):
+                    page = chunk['metadata'].get('page', 'N/A')
+                    img_index = chunk['metadata'].get('image_index', 'N/A')
+                    img_format = chunk['metadata'].get('format', 'N/A')
+                    
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #f8d7da; border: 2px solid #dc3545; border-radius: 8px; padding: 15px; margin: 10px 0;">
+                            <strong>🖼️ Image Chunk #{i} - Page {page}</strong><br>
+                            <div style="color: #555; margin-top: 8px;">Image #{img_index + 1} | Format: {img_format}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info("No image chunks found.")
+
+elif st.session_state.processed and st.session_state.rag_system:
     # Query interface
     st.header("💬 Ask Questions")
     
