@@ -61,6 +61,17 @@ if 'processed' not in st.session_state:
 if 'processing' not in st.session_state:
     st.session_state.processing = False
 
+# Auto-load RAG system if data exists
+if st.session_state.rag_system is None:
+    try:
+        temp_rag = RAGSystem()
+        if temp_rag.is_ready():
+            st.session_state.rag_system = temp_rag
+            st.session_state.processed = True
+    except Exception as e:
+        # If there's an error, we'll handle it in the UI
+        pass
+
 # Header
 st.markdown('<h1 class="main-header">☀️ Radar Solar RAG System</h1>', unsafe_allow_html=True)
 st.markdown('<p class="sub-header">Query the Desktop Due Diligence Report for Solar + Energy Storage Project</p>', unsafe_allow_html=True)
@@ -94,8 +105,16 @@ with st.sidebar:
     
     st.divider()
     
-    # Process PDF button
-    if pdf_path and not st.session_state.processed:
+    # Check if data already exists
+    data_exists = False
+    if st.session_state.rag_system:
+        try:
+            data_exists = st.session_state.rag_system.is_ready()
+        except:
+            pass
+    
+    # Process PDF button (only show if no data exists)
+    if pdf_path and not data_exists:
         if st.button("🔄 Process PDF & Build Knowledge Base", type="primary"):
             st.session_state.processing = True
             st.session_state.processed = False
@@ -116,13 +135,29 @@ with st.sidebar:
                     st.error(f"❌ Error processing PDF: {str(e)}")
                     st.session_state.processing = False
     
+    # Show status
+    if data_exists:
+        st.success("✅ Knowledge base loaded! Ready to query.")
+        if st.button("🔄 Reprocess PDF", help="Clear existing data and reprocess"):
+            if st.session_state.rag_system:
+                try:
+                    st.session_state.rag_system.vector_store.clear_collection()
+                    st.session_state.rag_system = None
+                    st.session_state.processed = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error clearing data: {str(e)}")
+    
     # Stats
     if st.session_state.processed and st.session_state.rag_system:
         st.divider()
         st.subheader("📊 Statistics")
-        stats = st.session_state.rag_system.get_stats()
-        st.metric("Total Chunks", stats['total_chunks'])
-        st.metric("Collection", stats['collection_name'])
+        try:
+            stats = st.session_state.rag_system.get_stats()
+            st.metric("Total Chunks", stats['total_chunks'])
+            st.metric("Collection", stats['collection_name'])
+        except Exception as e:
+            st.error(f"Error loading stats: {str(e)}")
 
 # Main content area
 if st.session_state.processed and st.session_state.rag_system:
@@ -191,7 +226,10 @@ if st.session_state.processed and st.session_state.rag_system:
 
 else:
     # Welcome message
-    st.info("👈 Please upload a PDF file and process it using the sidebar to start querying.")
+    if os.path.exists(PDF_PATH):
+        st.info("📄 PDF found in root folder. The system will auto-load existing embeddings if available, or you can process it using the sidebar.")
+    else:
+        st.info("👈 Please upload a PDF file and process it using the sidebar to start querying.")
     
     st.markdown("""
     ### 🚀 Features
@@ -202,13 +240,21 @@ else:
     - ✅ **Vector Database**: ChromaDB for efficient similarity search with indexing
     - ✅ **LLM Querying**: Perplexity Sonar Pro for generating answers
     - ✅ **Beautiful UI**: Streamlit interface for easy querying
+    - ✅ **Persistent Storage**: Embeddings are saved and auto-loaded on startup
     
     ### 📖 How to Use
     
-    1. Upload the PDF document using the sidebar
-    2. Click "Process PDF & Build Knowledge Base" to extract and index the content
-    3. Once processed, ask questions about the document
-    4. View answers with source citations
+    1. Place your PDF in the root folder (or upload via sidebar)
+    2. Click "Process PDF & Build Knowledge Base" **once** - embeddings will be saved
+    3. Next time you open the app, it will auto-load existing embeddings
+    4. Ask questions about the document
+    5. View answers with source citations
+    
+    ### 💾 Data Persistence
+    
+    - Embeddings are stored in `chroma_db/` directory
+    - Once processed, you don't need to reprocess unless you want to update the data
+    - The system automatically detects and loads existing embeddings
     """)
 
 

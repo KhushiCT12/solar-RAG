@@ -116,4 +116,8 @@ class RAGSystem:
     def get_stats(self) -> Dict:
         """Get statistics about the knowledge base"""
         return self.vector_store.get_collection_info()
+    
+    def is_ready(self) -> bool:
+        """Check if the RAG system has data loaded"""
+        return self.vector_store.has_data()
 

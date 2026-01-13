@@ -103,6 +103,14 @@ class VectorStore:
             'db_path': self.db_path
         }
     
+    def has_data(self) -> bool:
+        """Check if the collection has any data"""
+        try:
+            count = self.collection.count()
+            return count > 0
+        except:
+            return False
+    
     def clear_collection(self):
         """Clear all data from the collection"""
         self.client.delete_collection(name=self.collection_name)
