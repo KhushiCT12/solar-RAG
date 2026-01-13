@@ -217,4 +217,3 @@ class VectorStore:
             metadata={"description": "RAG system for Radar Solar Energy Storage Report"}
         )
         print(f"Database reset complete. New collection created: {self.collection_name}")
-
