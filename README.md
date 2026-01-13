@@ -13,22 +13,39 @@ A comprehensive Retrieval-Augmented Generation (RAG) system for querying the Des
 
 ## Setup
 
-### 1. Create Virtual Environment
+### 1. Clone the Repository
+
+```bash
+git clone <your-repo-url>
+cd SAR
+```
+
+### 2. Create Virtual Environment
 
 ```bash
 python3 -m venv .raaag
 source .raaag/bin/activate  # On Windows: .raaag\Scripts\activate
 ```
 
-### 2. Install Dependencies
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configuration
+### 4. Configuration
 
-The API key for Perplexity is already configured in `config.py`. The system uses the `sonar-pro` model.
+1. Copy the example config file:
+   ```bash
+   cp config.example.py config.py
+   ```
+
+2. Edit `config.py` and add your Perplexity API key:
+   ```python
+   PERPLEXITY_API_KEY = "your-perplexity-api-key-here"
+   ```
+
+   The system uses the `sonar-pro` model by default.
 
 ### 4. Run the Application
 
