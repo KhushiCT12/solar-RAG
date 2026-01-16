@@ -2,6 +2,13 @@
 Main RAG System
 Orchestrates the entire RAG pipeline
 """
+import sys
+import io
+# Set UTF-8 encoding for Windows console
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from pdf_processor import PDFProcessor
 from chunker import Chunker
 from perplexity_client import PerplexityClient
@@ -87,7 +94,7 @@ class RAGSystem:
         if self.pdf_processor:
             self.pdf_processor.close()
         
-        print("\n✅ PDF processing complete!")
+        print("\n[SUCCESS] PDF processing complete!")
         return self.vector_store.get_collection_info()
     
     def query(self, question: str, top_k: int = 5) -> Dict:
